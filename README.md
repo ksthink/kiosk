@@ -4,8 +4,10 @@
 
 ## 내려받기
 
-- **릴리스**: [Releases](../../releases) 페이지에서 `BannerGallery.exe`
-- **최신 빌드**: [Actions](../../actions) → 가장 최근 실행 → Artifacts (GitHub 로그인 필요)
+- **항상 최신 exe**: https://github.com/ksthink/kiosk/releases/latest/download/BannerGallery.exe
+- 이전 버전: [Releases](../../releases) 페이지
+
+`main`에 푸시할 때마다 GitHub Actions가 Windows에서 새로 빌드해 Releases에 올리므로, 위 링크는 늘 가장 최근 빌드를 받습니다.
 
 설치 없이 실행되는 포터블 exe입니다. 처음 실행하면 Windows SmartScreen 경고가 뜰 수 있는데, **추가 정보 → 실행**을 누르면 됩니다(코드 서명이 없어서 생기는 경고).
 
@@ -38,8 +40,4 @@ npm start          # 실행
 npm run dist       # Windows 포터블 exe 빌드 (dist/BannerGallery.exe)
 ```
 
-`main` 브랜치에 푸시하면 GitHub Actions가 Windows에서 exe를 빌드하고, `v1.0.1`처럼 `v`로 시작하는 태그를 푸시하면 Releases에 exe가 올라갑니다.
-
-```bash
-git tag v1.0.1 && git push origin v1.0.1
-```
+`main`에 푸시하면 `build-<번호>` 릴리스가 자동으로 생깁니다. 버전 이름을 직접 붙이고 싶으면 `v1.1.0` 같은 태그를 푸시해도 같은 방식으로 릴리스됩니다. Actions 탭에서 **Run workflow**로 수동 빌드도 할 수 있습니다.
