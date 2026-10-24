@@ -141,6 +141,7 @@ input:focus, select:focus { outline: 2px solid #1d1e2022; border-color: #9a9890;
 .settings output { color: var(--muted); font-weight: 400; }
 
 .settings .wide { grid-column: 1 / -1; }
+.settings .chk { display: flex; font-weight: 400; }
 .settings input:not([type=range]) { font-family: Consolas, monospace; font-size: 13px; }
 
 .adv { display: grid; gap: 12px; }

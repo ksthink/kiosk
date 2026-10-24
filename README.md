@@ -1,13 +1,22 @@
 # 배너 갤러리 (키오스크)
 
-배너 이미지가 가로로 끊임없이 흘러가고, 각 배너 아래에 연결된 사이트의 현재 상태(**접수중 · 접수예정 · 대기접수 · 마감**)를 표시하는 윈도우 앱입니다. 서버 없이 PC 한 대에서 동작하며, 상태는 5분마다 자동으로 다시 확인합니다.
+배너 이미지가 끊임없이 흘러가고(9:16 세로 화면에서는 위로, 가로 화면에서는 왼쪽으로), 각 배너 아래에 연결된 사이트의 현재 상태(**접수중 · 접수예정 · 대기접수 · 마감**)를 표시하는 윈도우 앱입니다. 서버 없이 PC 한 대에서 동작하며, 상태는 5분마다 자동으로 다시 확인합니다.
 
 ## 내려받기
 
-- **항상 최신 exe**: https://github.com/ksthink/kiosk/releases/latest/download/BannerGallery.exe
+둘 다 설치 없이 실행됩니다.
+
+- **키오스크용 (권장) · 압축 폴더**: https://github.com/ksthink/kiosk/releases/latest/download/BannerGallery-win-x64.zip
+  원하는 곳(예: `C:\Kiosk`)에 압축을 풀고 `BannerGallery.exe`를 실행합니다. 매번 압축을 풀지 않아 바로 켜집니다.
+- **단일 exe 파일**: https://github.com/ksthink/kiosk/releases/latest/download/BannerGallery.exe
+  파일 하나라 옮기기 편하지만, 실행할 때마다 임시 폴더에 풀리느라 켜지는 데 몇 초 더 걸립니다.
 - 이전 버전: [Releases](../../releases) 페이지
 
 `main`에 푸시할 때마다 GitHub Actions가 Windows에서 새로 빌드해 Releases에 올리므로, 위 링크는 늘 가장 최근 빌드를 받습니다.
+
+### 키오스크 PC 자동 시작
+
+`Win + R` → `shell:startup` 입력 → 열린 폴더에 `BannerGallery.exe` 바로가기를 넣으면 Windows가 켜질 때 자동 실행됩니다. 기본 설정으로 실행되자마자 전체화면이 됩니다.
 
 설치 없이 실행되는 포터블 exe입니다. 처음 실행하면 Windows SmartScreen 경고가 뜰 수 있는데, **추가 정보 → 실행**을 누르면 됩니다(코드 서명이 없어서 생기는 경고).
 

@@ -23,8 +23,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build portable exe
-        run: npx electron-builder --win portable --x64 --publish never
+      - name: Build (zip + portable exe)
+        run: npx electron-builder --win --x64 --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
 
@@ -33,7 +33,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: BannerGallery-${{ github.sha }}
-          path: dist/BannerGallery.exe
+          path: |
+            dist/BannerGallery-win-x64.zip
+            dist/BannerGallery.exe
           retention-days: 30
 
       # main 푸시(또는 수동 실행)마다 Releases에 새 버전으로 exe 첨부 → 태그는 Actions가 직접 만듦
@@ -45,7 +47,9 @@ jobs:
           tag_name: build-${{ github.run_number }}
           name: BannerGallery build ${{ github.run_number }}
           target_commitish: ${{ github.sha }}
-          files: dist/BannerGallery.exe
+          files: |
+            dist/BannerGallery-win-x64.zip
+            dist/BannerGallery.exe
           generate_release_notes: true
           make_latest: true
 
@@ -54,6 +58,8 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/BannerGallery.exe
+          files: |
+            dist/BannerGallery-win-x64.zip
+            dist/BannerGallery.exe
           generate_release_notes: true
           make_latest: true

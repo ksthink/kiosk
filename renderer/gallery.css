@@ -36,20 +36,44 @@ body.idle { cursor: none; }
 .track {
   display: flex;
   gap: var(--gap);
-  padding-left: var(--gap);
-  width: max-content;
   will-change: transform;
-  animation: scroll var(--dur, 60s) linear infinite;
 }
 #stage:hover .track { animation-play-state: paused; }
 
-@keyframes scroll {
+/* 가로 흐름: 왼쪽으로 */
+body[data-mode="horizontal"] .track {
+  padding-left: var(--gap);
+  width: max-content;
+  animation: scroll-x var(--dur, 60s) linear infinite;
+}
+body[data-mode="horizontal"] .set { display: flex; gap: var(--gap); }
+body[data-mode="horizontal"] .card { flex: 0 0 var(--w); }
+
+/* 세로 흐름(9:16 키오스크): 위로, 한 줄에 --cols개 */
+body[data-mode="vertical"] #stage { align-items: flex-start; }
+body[data-mode="vertical"] .track {
+  flex-direction: column;
+  width: 100%;
+  padding: var(--gap) var(--gap) 0;
+  animation: scroll-y var(--dur, 60s) linear infinite;
+}
+body[data-mode="vertical"] .set {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr));
+  gap: var(--gap);
+}
+
+@keyframes scroll-x {
   from { transform: translateX(0); }
   to { transform: translateX(calc(-1 * var(--shift, 0px))); }
 }
+@keyframes scroll-y {
+  from { transform: translateY(0); }
+  to { transform: translateY(calc(-1 * var(--shift, 0px))); }
+}
 
 .card {
-  flex: 0 0 var(--w);
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
   background: var(--card);
@@ -72,13 +96,17 @@ body.idle { cursor: none; }
   display: block;
 }
 
+/* 배너 폭에 맞춰 글자 크기가 커짐 → 큰 키오스크 화면에서도 읽히게 */
 .meta {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px 14px 14px;
-  min-height: 52px;
+  gap: clamp(8px, 2.5cqi, 16px);
+  padding: clamp(10px, 3.5cqi, 22px) clamp(12px, 4cqi, 24px);
 }
+
+/* 세로 흐름에서는 상태 문구를 위에, 제목을 아래 줄에 */
+body[data-mode="vertical"] .meta { flex-direction: column; align-items: flex-start; }
+body[data-mode="vertical"] .title { width: 100%; }
 
 .badge {
   --c: var(--unknown);
@@ -86,19 +114,19 @@ body.idle { cursor: none; }
   align-items: center;
   gap: 7px;
   flex: none;
-  padding: 6px 12px;
+  padding: .4em .85em;
   border-radius: 999px;
   background: var(--c);
   color: #fff;
-  font-size: 15px;
+  font-size: clamp(14px, 5.5cqi, 36px);
   font-weight: 700;
   letter-spacing: -.01em;
   white-space: nowrap;
 }
 .badge::before {
   content: "";
-  width: 7px;
-  height: 7px;
+  width: .45em;
+  height: .45em;
   border-radius: 50%;
   background: currentColor;
   opacity: .9;
@@ -119,7 +147,7 @@ body.idle { cursor: none; }
 
 .title {
   min-width: 0;
-  font-size: 14px;
+  font-size: clamp(13px, 4.2cqi, 26px);
   color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;

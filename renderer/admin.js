@@ -154,6 +154,9 @@ function renderSettings() {
     settingsForm.speed.value = s.speed;
     settingsForm.cardWidth.value = s.cardWidth;
     settingsForm.ratio.value = s.ratio;
+    settingsForm.direction.value = s.direction || 'auto';
+    settingsForm.columns.value = String(s.columns || 2);
+    settingsForm.startFullscreen.checked = !!s.startFullscreen;
     settingsForm.defaultSelector.value = s.defaultSelector || '';
   }
   $('#speedOut').textContent = `${settingsForm.speed.value}px/초`;
@@ -166,6 +169,9 @@ settingsForm.addEventListener('input', () => {
     speed: settingsForm.speed.value,
     cardWidth: settingsForm.cardWidth.value,
     ratio: settingsForm.ratio.value,
+    direction: settingsForm.direction.value,
+    columns: settingsForm.columns.value,
+    startFullscreen: settingsForm.startFullscreen.checked,
     defaultSelector: settingsForm.defaultSelector.value,
   });
 });

@@ -21,18 +21,42 @@ function makeCard(b, clone) {
   return el;
 }
 
+function flowMode(s) {
+  if (s.direction === 'horizontal' || s.direction === 'vertical') return s.direction;
+  return window.innerHeight > window.innerWidth ? 'vertical' : 'horizontal';
+}
+
+function makeSet(list, clone) {
+  const set = document.createElement('div');
+  set.className = 'set';
+  if (clone) set.setAttribute('aria-hidden', 'true');
+  set.append(...list.map((b) => makeCard(b, clone)));
+  return set;
+}
+
 function build(list, s) {
+  const mode = flowMode(s);
+  document.body.dataset.mode = mode;
   track.style.animation = 'none';
   track.replaceChildren();
   if (!list.length) return;
 
-  // 한 세트 폭만큼 이동하면 다음 세트가 정확히 같은 자리에 오도록 → 끊김 없는 무한 흐름
-  const setWidth = list.length * (s.cardWidth + GAP);
-  const copies = Math.ceil(window.innerWidth / setWidth) + 1;
-  for (let c = 0; c < copies; c++) track.append(...list.map((b) => makeCard(b, c > 0)));
+  // 세로 흐름에서 배너 수가 한 줄 개수로 나눠떨어지지 않으면 줄 끝에 빈칸이 생기므로, 세트를 반복해 채움
+  const vertical = mode === 'vertical';
+  const cols = Math.max(1, s.columns || 2);
+  let setList = list;
+  while (vertical && setList.length % cols) setList = setList.concat(list);
 
-  track.style.setProperty('--shift', `${setWidth}px`);
-  track.style.setProperty('--dur', `${setWidth / s.speed}s`);
+  // 한 세트만큼 이동하면 다음 세트가 정확히 같은 자리에 오도록 → 끊김 없는 무한 흐름
+  const first = makeSet(setList, false);
+  track.append(first);
+  const step = (vertical ? first.offsetHeight : first.offsetWidth) + GAP;
+  const view = vertical ? window.innerHeight : window.innerWidth;
+  const copies = Math.ceil(view / step) + 1;
+  for (let c = 1; c < copies; c++) track.append(makeSet(setList, true));
+
+  track.style.setProperty('--shift', `${step}px`);
+  track.style.setProperty('--dur', `${step / s.speed}s`);
   void track.offsetWidth; // 애니메이션 재시작
   track.style.animation = '';
 }
@@ -59,9 +83,10 @@ function render(state) {
 
   root.style.setProperty('--w', `${s.cardWidth}px`);
   root.style.setProperty('--ratio', s.ratio);
+  root.style.setProperty('--cols', s.columns || 2);
   empty.hidden = list.length > 0;
 
-  const sig = JSON.stringify([list.map((b) => [b.id, b.imageSrc, b.title, b.link]), s, window.innerWidth]);
+  const sig = JSON.stringify([list.map((b) => [b.id, b.imageSrc, b.title, b.link]), s, window.innerWidth, window.innerHeight]);
   if (sig !== layoutSig) {
     layoutSig = sig;
     build(list, s);

@@ -67,9 +67,25 @@
       <label>흐르는 속도 <output id="speedOut"></output>
         <input type="range" name="speed" min="10" max="200" step="5">
       </label>
-      <label>배너 폭 <output id="widthOut"></output>
+      <label>흐르는 방향
+        <select name="direction">
+          <option value="auto">자동 (세로 화면이면 위로)</option>
+          <option value="vertical">위로 (세로 화면용)</option>
+          <option value="horizontal">왼쪽으로 (가로 화면용)</option>
+        </select>
+      </label>
+      <label>한 줄 배너 수 <small>위로 흐를 때</small>
+        <select name="columns">
+          <option value="1">1개</option>
+          <option value="2">2개</option>
+          <option value="3">3개</option>
+          <option value="4">4개</option>
+        </select>
+      </label>
+      <label>배너 폭 <output id="widthOut"></output> <small>왼쪽으로 흐를 때</small>
         <input type="range" name="cardWidth" min="160" max="800" step="10">
       </label>
+      <label class="chk wide"><input type="checkbox" name="startFullscreen"> 실행하면 바로 전체화면 <small>키오스크용 · Esc로 해제</small></label>
       <label class="wide">기본 CSS 선택자 <small>배너별로 따로 지정하지 않으면 이 요소의 글자를 읽어 표시</small>
         <input name="defaultSelector" spellcheck="false">
       </label>

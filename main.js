@@ -10,6 +10,9 @@ const DEFAULT_SETTINGS = {
   speed: 40,
   cardWidth: 320,
   ratio: '4/3',
+  direction: 'auto', // auto: 세로로 긴 화면이면 위로 흐름, 가로로 긴 화면이면 옆으로 흐름
+  columns: 2, // 세로 흐름일 때 한 줄에 놓을 배너 수
+  startFullscreen: true,
   // 배너별 선택자를 비워두면 이 선택자로 읽음 (영등포구립도서관 강좌 상세 페이지의 접수 상태 칸)
   defaultSelector: '#contents > div.boardWrap > table > tbody > tr:nth-child(8) > td > span',
 };
@@ -88,8 +91,8 @@ function lockDown(win) {
 
 function createGallery() {
   galleryWin = new BrowserWindow({
-    width: 1400,
-    height: 560,
+    width: 540, // 전체화면이 아닐 때는 9:16 미리보기 크기
+    height: 960,
     title: '배너 갤러리',
     backgroundColor: '#111214',
     autoHideMenuBar: true,
@@ -187,6 +190,9 @@ ipcMain.handle('settings:save', (_e, s) => {
     speed: n(s.speed, 5, 400, DEFAULT_SETTINGS.speed),
     cardWidth: n(s.cardWidth, 120, 1200, DEFAULT_SETTINGS.cardWidth),
     ratio: ['16/9', '4/3', '1/1', '3/4', '1/1.414'].includes(s.ratio) ? s.ratio : DEFAULT_SETTINGS.ratio,
+    direction: ['auto', 'horizontal', 'vertical'].includes(s.direction) ? s.direction : DEFAULT_SETTINGS.direction,
+    columns: Math.round(n(s.columns, 1, 4, DEFAULT_SETTINGS.columns)),
+    startFullscreen: s.startFullscreen !== undefined ? !!s.startFullscreen : state.settings.startFullscreen,
     defaultSelector: typeof s.defaultSelector === 'string' ? s.defaultSelector.trim() : state.settings.defaultSelector,
   };
   const selectorChanged = state.settings.defaultSelector !== prevSelector;
@@ -232,8 +238,15 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.whenReady().then(() => {
-    // 포터블 exe면 exe 옆 폴더에 저장 → 폴더째 다른 PC로 옮기기 쉬움
-    const base = process.env.PORTABLE_EXECUTABLE_DIR || app.getPath('userData');
+    // exe 옆 폴더에 저장 → 폴더째 다른 PC로 옮기기 쉬움 (쓰기 권한이 없으면 AppData로)
+    const exeDir = process.env.PORTABLE_EXECUTABLE_DIR || (app.isPackaged ? path.dirname(process.execPath) : null);
+    let base = app.getPath('userData');
+    if (exeDir) {
+      try {
+        fs.accessSync(exeDir, fs.constants.W_OK);
+        base = exeDir;
+      } catch {}
+    }
     dataDir = path.join(base, 'banner-data');
     imgDir = path.join(dataDir, 'images');
     dataFile = path.join(dataDir, 'banners.json');
@@ -241,6 +254,7 @@ if (!app.requestSingleInstanceLock()) {
     loadState();
 
     createGallery();
+    if (state.settings.startFullscreen) galleryWin.setFullScreen(true);
     if (!state.banners.length) openAdmin();
 
     crawlAll();

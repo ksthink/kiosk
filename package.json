@@ -7,7 +7,7 @@
   "license": "UNLICENSED",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --win portable --x64"
+    "dist": "electron-builder --win --x64"
   },
   "dependencies": {
     "cheerio": "^1.2.0",
@@ -24,8 +24,10 @@
     ],
     "win": {
       "target": [
+        "zip",
         "portable"
       ],
+      "artifactName": "BannerGallery-win-x64.${ext}",
       "signAndEditExecutable": false
     },
     "portable": {
