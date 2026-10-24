@@ -1,0 +1,39 @@
+{
+  "name": "banner-gallery",
+  "version": "1.0.0",
+  "description": "배너 갤러리 - 접수 상태 자동 확인",
+  "main": "main.js",
+  "author": "ksthink",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win portable --x64"
+  },
+  "dependencies": {
+    "cheerio": "^1.2.0",
+    "iconv-lite": "^0.6.3"
+  },
+  "build": {
+    "appId": "com.ksthink.bannergallery",
+    "productName": "BannerGallery",
+    "files": [
+      "main.js",
+      "preload.js",
+      "crawler.js",
+      "renderer/**/*"
+    ],
+    "win": {
+      "target": [
+        "portable"
+      ],
+      "signAndEditExecutable": false
+    },
+    "portable": {
+      "artifactName": "BannerGallery.exe"
+    }
+  },
+  "devDependencies": {
+    "electron": "^45.0.0",
+    "electron-builder": "^26.18.0"
+  }
+}
