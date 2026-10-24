@@ -2,26 +2,45 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' file: data:; style-src 'self' 'unsafe-inline'; script-src 'self' file:">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' file: data: banner:; style-src 'self' 'unsafe-inline'; script-src 'self' file:">
   <title>배너 갤러리</title>
   <link rel="stylesheet" href="gallery.css">
 </head>
 <body>
-  <main id="stage">
-    <div id="track" class="track"></div>
-  </main>
+  <!-- 포스터 두 장을 번갈아 쓰며 크로스페이드 -->
+  <div id="slides" class="slides">
+    <div class="slide"><img class="poster" alt="" draggable="false"></div>
+    <div class="slide"><img class="poster" alt="" draggable="false"></div>
+  </div>
+
+  <div id="panel" class="panel">
+    <div class="info">
+      <span id="badge" class="badge"></span>
+      <span id="title" class="title"></span>
+    </div>
+    <div class="thumbs">
+      <button id="prevBtn" class="nav" type="button" aria-label="이전 포스터">
+        <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>
+      </button>
+      <div id="strip" class="strip"></div>
+      <button id="nextBtn" class="nav" type="button" aria-label="다음 포스터">
+        <svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>
+      </button>
+    </div>
+    <div id="progress" class="progress"><i></i></div>
+  </div>
 
   <div id="empty" class="empty" hidden>
-    <p>등록된 배너가 없습니다.</p>
-    <button id="emptyAdd" type="button">배너 추가하기</button>
+    <p>등록된 포스터가 없습니다.</p>
+    <button id="emptyAdd" type="button">포스터 추가하기</button>
   </div>
 
   <div id="toolbar" class="toolbar">
     <button id="fsBtn" type="button" title="전체화면 (F11)" aria-label="전체화면">
       <svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
     </button>
-    <button id="adminBtn" type="button" title="배너 관리 (Ctrl+,)" aria-label="배너 관리">
-      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+    <button id="adminBtn" type="button" title="포스터 관리 (Ctrl+,)" aria-label="포스터 관리">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>
     </button>
   </div>
 

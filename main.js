@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, protocol, net } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
@@ -7,22 +7,22 @@ const { checkBanner } = require('./crawler');
 
 const CRAWL_INTERVAL_MS = 5 * 60 * 1000;
 const DEFAULT_SETTINGS = {
-  speed: 40,
-  cardWidth: 320,
-  ratio: '4/3',
-  direction: 'auto', // auto: 세로로 긴 화면이면 위로 흐름, 가로로 긴 화면이면 옆으로 흐름
-  columns: 2, // 세로 흐름일 때 한 줄에 놓을 배너 수
+  slideSeconds: 8, // 포스터 한 장을 보여주는 시간
   startFullscreen: true,
-  // 배너별 선택자를 비워두면 이 선택자로 읽음 (영등포구립도서관 강좌 상세 페이지의 접수 상태 칸)
+  // 행사 페이지에서 상태 문구를 읽을 위치 (영등포구립도서관 강좌 상세의 접수 상태 칸)
   defaultSelector: '#contents > div.boardWrap > table > tbody > tr:nth-child(8) > td > span',
 };
-const effective = (b) => ({ ...b, selector: b.selector || state.settings.defaultSelector || '' });
 
 let dataDir, dataFile, imgDir;
 let state = { settings: { ...DEFAULT_SETTINGS }, banners: [] };
 let galleryWin = null;
 let adminWin = null;
 let crawlingAll = false;
+
+// 포스터 이미지는 banner:// 로 제공 → 갤러리가 캔버스로 가장자리 색을 읽을 수 있음(CORS 허용)
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'banner', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } },
+]);
 
 // ---------- 저장 ----------
 function loadState() {
@@ -43,15 +43,16 @@ function saveState() {
   fs.renameSync(tmp, dataFile);
 }
 
-const toView = (b) => ({ ...b, imageSrc: b.image ? pathToFileURL(path.join(imgDir, b.image)).href : '' });
-const snapshot = () => ({ settings: state.settings, banners: state.banners.map(toView), interval: CRAWL_INTERVAL_MS });
+const toView = (b) => ({ ...b, imageSrc: b.image ? `banner://img/${encodeURIComponent(b.image)}` : '' });
+const snapshot = () => ({ settings: state.settings, banners: state.banners.map(toView) });
+const effective = (b) => ({ ...b, selector: b.selector || state.settings.defaultSelector || '' });
 
 function broadcast() {
   const snap = snapshot();
   for (const w of [galleryWin, adminWin]) if (w && !w.isDestroyed()) w.webContents.send('state:changed', snap);
 }
 
-// ---------- 크롤링 ----------
+// ---------- 상태 확인 ----------
 async function crawlOne(id) {
   const target = state.banners.find((b) => b.id === id);
   if (!target || target.checking) return;
@@ -67,7 +68,7 @@ async function crawlOne(id) {
     b.statusText = r.text;
     b.error = null;
   } else {
-    b.error = r.error; // 실패 시 마지막으로 확인된 상태는 유지
+    b.error = r.error; // 실패하면 마지막으로 읽은 상태를 그대로 둠
   }
   saveState();
   broadcast();
@@ -94,7 +95,7 @@ function createGallery() {
     width: 540, // 전체화면이 아닐 때는 9:16 미리보기 크기
     height: 960,
     title: '배너 갤러리',
-    backgroundColor: '#111214',
+    backgroundColor: '#0e0e10',
     autoHideMenuBar: true,
     webPreferences: { preload: path.join(__dirname, 'preload.js') },
   });
@@ -110,10 +111,10 @@ function createGallery() {
 function openAdmin() {
   if (adminWin && !adminWin.isDestroyed()) return adminWin.focus();
   adminWin = new BrowserWindow({
-    width: 1120,
-    height: 860,
-    title: '배너 관리',
-    backgroundColor: '#f5f4f0',
+    width: 980,
+    height: 820,
+    title: '행사 관리',
+    backgroundColor: '#f4f3ef',
     autoHideMenuBar: true,
     webPreferences: { preload: path.join(__dirname, 'preload.js') },
   });
@@ -125,42 +126,42 @@ function openAdmin() {
 
 // ---------- IPC ----------
 const isHttp = (u) => /^https?:\/\/\S+$/i.test(u);
+const IMAGE_EXT = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'];
 
 ipcMain.handle('state:get', () => snapshot());
 
 ipcMain.handle('banner:save', (_e, input) => {
   let b = input.id ? state.banners.find((x) => x.id === input.id) : null;
   const isNew = !b;
-  if (isNew && !input.imagePath) throw new Error('배너 이미지를 선택하세요.');
+  if (isNew && !input.imagePath) throw new Error('포스터 이미지를 넣어 주세요.');
 
   const link = String(input.link || '').trim();
-  const crawlUrl = String(input.crawlUrl || '').trim();
-  if (!isHttp(link)) throw new Error('링크 URL은 http:// 또는 https:// 로 시작해야 합니다.');
-  if (crawlUrl && !isHttp(crawlUrl)) throw new Error('상태 확인 URL이 올바르지 않습니다.');
+  if (!isHttp(link)) throw new Error('주소는 http:// 또는 https:// 로 시작해야 해요.');
 
   if (isNew) b = { id: crypto.randomUUID(), status: 'unknown', createdAt: new Date().toISOString() };
 
   if (input.imagePath) {
     const ext = (path.extname(input.imagePath) || '.png').toLowerCase();
+    if (!IMAGE_EXT.includes(ext)) throw new Error('이미지 파일(png, jpg, webp 등)만 넣을 수 있어요.');
     const name = `${b.id}-${Date.now()}${ext}`;
     fs.copyFileSync(input.imagePath, path.join(imgDir, name));
     if (b.image) fs.rmSync(path.join(imgDir, b.image), { force: true });
     b.image = name;
   }
 
-  const urlChanged = !isNew && (b.link !== link || b.crawlUrl !== crawlUrl || b.selector !== input.selector || b.render !== !!input.render);
-  Object.assign(b, {
-    title: String(input.title || '').trim(),
-    link,
-    crawlUrl,
-    selector: String(input.selector || '').trim(),
-    render: !!input.render,
-    active: input.active !== false,
-  });
+  const linkChanged = b.link !== link;
+  b.link = link;
+  if (input.title !== undefined) b.title = String(input.title || '').trim();
+  if (input.active !== undefined) b.active = input.active !== false;
   if (isNew) state.banners.push(b);
+  if (linkChanged) {
+    b.status = 'unknown';
+    b.statusText = '';
+    b.error = null;
+  }
   saveState();
   broadcast();
-  if (isNew || urlChanged) crawlOne(b.id);
+  if (linkChanged) crawlOne(b.id);
   return toView(b);
 });
 
@@ -173,11 +174,11 @@ ipcMain.handle('banner:remove', (_e, id) => {
   broadcast();
 });
 
-ipcMain.handle('banner:move', (_e, id, delta) => {
-  const i = state.banners.findIndex((b) => b.id === id);
-  const j = i + delta;
-  if (i < 0 || j < 0 || j >= state.banners.length) return;
-  [state.banners[i], state.banners[j]] = [state.banners[j], state.banners[i]];
+ipcMain.handle('banner:reorder', (_e, ids) => {
+  const byId = new Map(state.banners.map((b) => [b.id, b]));
+  const ordered = ids.map((id) => byId.get(id)).filter(Boolean);
+  const rest = state.banners.filter((b) => !ids.includes(b.id));
+  state.banners = [...ordered, ...rest];
   saveState();
   broadcast();
 });
@@ -185,22 +186,18 @@ ipcMain.handle('banner:move', (_e, id, delta) => {
 let recrawlTimer;
 ipcMain.handle('settings:save', (_e, s) => {
   const prevSelector = state.settings.defaultSelector;
-  const n = (v, lo, hi, d) => (Number.isFinite(+v) ? Math.min(hi, Math.max(lo, +v)) : d);
+  const sec = Number(s.slideSeconds);
   state.settings = {
-    speed: n(s.speed, 5, 400, DEFAULT_SETTINGS.speed),
-    cardWidth: n(s.cardWidth, 120, 1200, DEFAULT_SETTINGS.cardWidth),
-    ratio: ['16/9', '4/3', '1/1', '3/4', '1/1.414'].includes(s.ratio) ? s.ratio : DEFAULT_SETTINGS.ratio,
-    direction: ['auto', 'horizontal', 'vertical'].includes(s.direction) ? s.direction : DEFAULT_SETTINGS.direction,
-    columns: Math.round(n(s.columns, 1, 4, DEFAULT_SETTINGS.columns)),
+    ...state.settings,
+    slideSeconds: Number.isFinite(sec) ? Math.min(60, Math.max(2, Math.round(sec))) : state.settings.slideSeconds,
     startFullscreen: s.startFullscreen !== undefined ? !!s.startFullscreen : state.settings.startFullscreen,
     defaultSelector: typeof s.defaultSelector === 'string' ? s.defaultSelector.trim() : state.settings.defaultSelector,
   };
-  const selectorChanged = state.settings.defaultSelector !== prevSelector;
   saveState();
   broadcast();
-  if (selectorChanged) {
+  if (state.settings.defaultSelector !== prevSelector) {
     clearTimeout(recrawlTimer);
-    recrawlTimer = setTimeout(crawlAll, 1500); // 기본 선택자를 바꾸면 잠시 뒤 전체 다시 확인
+    recrawlTimer = setTimeout(crawlAll, 1500); // 읽는 위치를 바꾸면 잠시 뒤 전체 다시 확인
   }
 });
 
@@ -209,9 +206,9 @@ ipcMain.handle('crawl:test', (_e, input) => checkBanner(effective(input)));
 
 ipcMain.handle('image:pick', async () => {
   const r = await dialog.showOpenDialog(adminWin || galleryWin, {
-    title: '배너 이미지 선택',
+    title: '포스터 이미지 선택',
     properties: ['openFile'],
-    filters: [{ name: '이미지', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp'] }],
+    filters: [{ name: '이미지', extensions: IMAGE_EXT.map((e) => e.slice(1)) }],
   });
   if (r.canceled || !r.filePaths[0]) return null;
   return { path: r.filePaths[0], src: pathToFileURL(r.filePaths[0]).href };
@@ -238,7 +235,7 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.whenReady().then(() => {
-    // exe 옆 폴더에 저장 → 폴더째 다른 PC로 옮기기 쉬움 (쓰기 권한이 없으면 AppData로)
+    // exe 옆 banner-data 폴더에 저장 → 폴더째 다른 PC로 옮기기 쉬움 (쓰기 불가면 AppData)
     const exeDir = process.env.PORTABLE_EXECUTABLE_DIR || (app.isPackaged ? path.dirname(process.execPath) : null);
     let base = app.getPath('userData');
     if (exeDir) {
@@ -252,6 +249,14 @@ if (!app.requestSingleInstanceLock()) {
     dataFile = path.join(dataDir, 'banners.json');
     fs.mkdirSync(imgDir, { recursive: true });
     loadState();
+
+    protocol.handle('banner', async (req) => {
+      const name = path.basename(decodeURIComponent(new URL(req.url).pathname));
+      const res = await net.fetch(pathToFileURL(path.join(imgDir, name)).href);
+      const headers = new Headers(res.headers);
+      headers.set('Access-Control-Allow-Origin', '*');
+      return new Response(res.body, { status: res.status, headers });
+    });
 
     createGallery();
     if (state.settings.startFullscreen) galleryWin.setFullScreen(true);

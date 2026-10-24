@@ -1,189 +1,199 @@
-const LABEL = { open: '접수중', upcoming: '접수예정', waiting: '대기접수', closed: '마감', unknown: '확인 전', checking: '확인 중…' };
+const LABEL = { open: '접수중', upcoming: '접수예정', waiting: '대기접수', closed: '마감', unknown: '확인 전' };
 const $ = (s) => document.querySelector(s);
 
-const form = $('#form');
-const preview = $('#preview');
-const testOut = $('#testOut');
-const formErr = $('#formErr');
 const list = $('#list');
+const dlg = $('#dlg');
+const drop = $('#drop');
+const urlInput = $('#url');
+const err = $('#err');
 const settingsForm = $('#settings');
 
-let state = { settings: {}, banners: [], interval: 300000 };
-let pickedImage = null;
-let editingId = null;
+let state = { settings: {}, banners: [] };
+let editing = null; // 수정 중인 행사 id
+let imagePath = null; // 새로 고른 이미지 경로
+let dragging = null;
 
 const cleanErr = (e) => String(e?.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
-const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const host = (u) => { try { return new URL(u).host.replace(/^www\./, ''); } catch { return u; } };
 
-function ago(iso) {
-  if (!iso) return '아직 확인 안 함';
-  const m = Math.round((Date.now() - new Date(iso)) / 60000);
-  return m < 1 ? '방금 확인' : m < 60 ? `${m}분 전 확인` : `${Math.round(m / 60)}시간 전 확인`;
+// ---------- 목록 ----------
+function statusOf(b) {
+  if (b.checking) return ['checking', '확인 중…'];
+  if (b.error && !b.statusText) return ['error', '확인 실패']; // 한 번도 못 읽은 경우만 (읽은 적 있으면 마지막 상태 유지)
+  const raw = (b.statusText || '').trim();
+  return [b.status || 'unknown', raw && raw.length <= 16 ? raw : LABEL[b.status] || LABEL.unknown];
 }
 
-// ----- 목록 -----
 function renderList() {
-  $('#count').textContent = state.banners.length ? `${state.banners.length}개` : '';
-  list.innerHTML = state.banners
-    .map((b, i) => {
-      const s = b.checking ? 'checking' : b.status || 'unknown';
-      return `<li class="item ${b.active === false ? 'off' : ''}" data-id="${b.id}">
-        <img src="${esc(b.imageSrc)}" alt="">
-        <div class="info">
-          <div class="name"><span class="badge" data-s="${s}">${LABEL[s] || LABEL.unknown}</span>${esc(b.title || '(제목 없음)')}</div>
-          <div class="url">${esc(b.crawlUrl || b.link)}${b.selector ? ` · <code>${esc(b.selector)}</code>` : ''}${b.render ? ' · JS 렌더링' : ''}</div>
-          ${b.statusText ? `<div class="read">읽은 글자: ${esc(b.statusText)}</div>` : ''}
-          <div class="when">${ago(b.checkedAt)}</div>
-          ${b.error ? `<div class="error">확인 실패: ${esc(b.error)}</div>` : ''}
-        </div>
-        <div class="btns">
-          <button data-act="up" ${i === 0 ? 'disabled' : ''} title="앞으로">↑</button>
-          <button data-act="down" ${i === state.banners.length - 1 ? 'disabled' : ''} title="뒤로">↓</button>
-          <button data-act="check" ${b.checking ? 'disabled' : ''}>지금 확인</button>
-          <button data-act="edit">수정</button>
-          <button data-act="del">삭제</button>
-        </div>
-      </li>`;
-    })
-    .join('');
+  if (dragging) return; // 끄는 중에는 다시 그리지 않음
+  const items = state.banners;
+  $('#count').textContent = items.length ? items.length : '';
+  $('#emptyMsg').hidden = items.length > 0;
+  $('#hint').hidden = items.length < 2;
+  list.replaceChildren(
+    ...items.map((b, i) => {
+      const [s, text] = statusOf(b);
+      const li = document.createElement('li');
+      li.className = 'item' + (b.active === false ? ' off' : '');
+      li.draggable = true;
+      li.dataset.id = b.id;
+      li.title = b.error ? `확인 실패: ${b.error}` : b.link;
+      li.innerHTML = `<img alt=""><span class="num"></span><div class="meta"><span class="badge"></span><span class="host"></span></div>`;
+      li.querySelector('img').src = b.imageSrc;
+      li.querySelector('.num').textContent = i + 1;
+      const badge = li.querySelector('.badge');
+      badge.dataset.s = s;
+      badge.textContent = text;
+      li.querySelector('.host').textContent = host(b.link);
+      return li;
+    }),
+  );
 }
 
-list.addEventListener('click', async (e) => {
-  const btn = e.target.closest('button[data-act]');
-  if (!btn) return;
-  const id = btn.closest('.item').dataset.id;
-  const b = state.banners.find((x) => x.id === id);
-  switch (btn.dataset.act) {
-    case 'up': return window.api.moveBanner(id, -1);
-    case 'down': return window.api.moveBanner(id, 1);
-    case 'check': return window.api.crawlNow(id);
-    case 'edit': return startEdit(b);
-    case 'del':
-      if (confirm(`"${b.title || '이 배너'}"를 삭제할까요?`)) {
-        if (editingId === id) resetForm();
-        await window.api.removeBanner(id);
-      }
-  }
+function renumber() {
+  list.querySelectorAll('.item .num').forEach((n, i) => (n.textContent = i + 1));
+}
+
+// 끌어서 순서 바꾸기
+list.addEventListener('dragstart', (e) => {
+  const li = e.target.closest('.item');
+  if (!li) return;
+  dragging = li;
+  li.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', li.dataset.id);
 });
 
-// ----- 등록/수정 폼 -----
-function setPreview(src) {
-  preview.style.backgroundImage = src ? `url("${src}")` : '';
-  preview.classList.toggle('has', !!src);
+list.addEventListener('dragover', (e) => {
+  if (!dragging) return;
+  e.preventDefault();
+  const over = e.target.closest('.item');
+  if (!over || over === dragging) return;
+  const r = over.getBoundingClientRect();
+  const after = e.clientX > r.left + r.width / 2;
+  list.insertBefore(dragging, after ? over.nextSibling : over);
+  renumber();
+});
+
+list.addEventListener('drop', (e) => e.preventDefault());
+
+list.addEventListener('dragend', async () => {
+  if (!dragging) return;
+  dragging.classList.remove('dragging');
+  dragging = null;
+  const ids = [...list.querySelectorAll('.item')].map((li) => li.dataset.id);
+  const before = state.banners.map((b) => b.id);
+  if (ids.join() !== before.join()) await window.api.reorderBanners(ids);
+  else renderList();
+});
+
+list.addEventListener('click', (e) => {
+  const li = e.target.closest('.item');
+  if (li) openDialog(state.banners.find((b) => b.id === li.dataset.id));
+});
+
+// ---------- 등록/수정 창 ----------
+function setDrop(src) {
+  drop.style.backgroundImage = src ? `url("${src}")` : '';
+  drop.classList.toggle('has', !!src);
 }
 
-function resetForm() {
-  form.reset();
-  form.id.value = '';
-  editingId = null;
-  pickedImage = null;
-  setPreview('');
-  $('#formTitle').textContent = '새 배너';
-  $('#saveBtn').textContent = '추가';
-  $('#cancelBtn').hidden = true;
-  testOut.hidden = true;
-  formErr.hidden = true;
+function openDialog(b) {
+  editing = b ? b.id : null;
+  imagePath = null;
+  err.hidden = true;
+  urlInput.value = b ? b.link : '';
+  setDrop(b ? b.imageSrc : '');
+  $('#dlgTitle').textContent = b ? '행사 수정' : '행사 등록';
+  $('#okBtn').textContent = b ? '저장' : '등록';
+  $('#delBtn').hidden = !b;
+  dlg.showModal();
+  if (b) urlInput.focus();
 }
 
-function startEdit(b) {
-  resetForm();
-  editingId = b.id;
-  form.id.value = b.id;
-  form.title.value = b.title || '';
-  form.link.value = b.link || '';
-  form.crawlUrl.value = b.crawlUrl || '';
-  form.selector.value = b.selector || '';
-  form.render.checked = !!b.render;
-  form.active.checked = b.active !== false;
-  form.querySelector('.adv').open = !!(b.crawlUrl || b.selector);
-  setPreview(b.imageSrc);
-  $('#formTitle').textContent = '배너 수정';
-  $('#saveBtn').textContent = '저장';
-  $('#cancelBtn').hidden = false;
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-preview.addEventListener('click', async () => {
+async function pick() {
   const r = await window.api.pickImage();
   if (!r) return;
-  pickedImage = r.path;
-  setPreview(r.src);
-});
+  imagePath = r.path;
+  setDrop(r.src);
+}
 
-$('#cancelBtn').addEventListener('click', resetForm);
+drop.addEventListener('click', pick);
+$('#emptyAdd').addEventListener('click', () => openDialog(null));
+$('#addBtn').addEventListener('click', () => openDialog(null));
+$('#cancelBtn').addEventListener('click', () => dlg.close());
 
-$('#testBtn').addEventListener('click', async () => {
-  const url = form.crawlUrl.value.trim() || form.link.value.trim();
-  testOut.hidden = false;
-  testOut.className = 'testout';
-  testOut.textContent = '확인 중…';
-  const r = await window.api.testCrawl({ crawlUrl: url, selector: form.selector.value.trim(), render: form.render.checked });
-  if (r.ok) {
-    testOut.textContent = `읽은 문구: ${r.text || '(비어 있음)'}\n색상 판정: ${LABEL[r.status]}${r.status === 'unknown' ? ' (키워드를 찾지 못해 회색으로 표시)' : ''}`;
-  } else {
-    testOut.className = 'testout bad';
-    testOut.textContent = `실패: ${r.error}`;
-  }
-});
-
-form.addEventListener('submit', async (e) => {
+// 이미지 파일을 끌어다 놓기
+drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('over'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+drop.addEventListener('drop', (e) => {
   e.preventDefault();
-  formErr.hidden = true;
+  drop.classList.remove('over');
+  const file = [...e.dataTransfer.files].find((f) => f.type.startsWith('image/'));
+  if (!file) return;
+  imagePath = window.api.pathForFile(file);
+  setDrop(URL.createObjectURL(file));
+});
+// 창 아무 데나 떨어뜨려도 브라우저가 파일을 열지 않게
+window.addEventListener('dragover', (e) => e.preventDefault());
+window.addEventListener('drop', (e) => e.preventDefault());
+
+$('#form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  err.hidden = true;
+  if (!editing && !imagePath) {
+    err.textContent = '포스터 이미지를 넣어 주세요.';
+    err.hidden = false;
+    return;
+  }
+  const b = editing && state.banners.find((x) => x.id === editing);
   try {
     await window.api.saveBanner({
-      id: form.id.value || null,
-      imagePath: pickedImage,
-      title: form.title.value,
-      link: form.link.value,
-      crawlUrl: form.crawlUrl.value,
-      selector: form.selector.value,
-      render: form.render.checked,
-      active: form.active.checked,
+      id: editing,
+      imagePath,
+      link: urlInput.value,
+      title: b?.title || '',
+      active: b ? b.active !== false : true,
     });
-    resetForm();
-  } catch (err) {
-    formErr.textContent = cleanErr(err);
-    formErr.hidden = false;
+    dlg.close();
+  } catch (ex) {
+    err.textContent = cleanErr(ex);
+    err.hidden = false;
   }
 });
 
-// ----- 표시 설정 -----
+$('#delBtn').addEventListener('click', async () => {
+  if (!editing || !confirm('이 행사를 삭제할까요?')) return;
+  await window.api.removeBanner(editing);
+  dlg.close();
+});
+
+// ---------- 설정 ----------
 function renderSettings() {
   const s = state.settings;
   if (document.activeElement?.form !== settingsForm) {
-    settingsForm.speed.value = s.speed;
-    settingsForm.cardWidth.value = s.cardWidth;
-    settingsForm.ratio.value = s.ratio;
-    settingsForm.direction.value = s.direction || 'auto';
-    settingsForm.columns.value = String(s.columns || 2);
+    settingsForm.slideSeconds.value = s.slideSeconds;
     settingsForm.startFullscreen.checked = !!s.startFullscreen;
     settingsForm.defaultSelector.value = s.defaultSelector || '';
   }
-  $('#speedOut').textContent = `${settingsForm.speed.value}px/초`;
-  $('#widthOut').textContent = `${settingsForm.cardWidth.value}px`;
+  $('#secOut').textContent = `${settingsForm.slideSeconds.value}초`;
 }
 
 settingsForm.addEventListener('input', () => {
   renderSettings();
   window.api.saveSettings({
-    speed: settingsForm.speed.value,
-    cardWidth: settingsForm.cardWidth.value,
-    ratio: settingsForm.ratio.value,
-    direction: settingsForm.direction.value,
-    columns: settingsForm.columns.value,
+    slideSeconds: settingsForm.slideSeconds.value,
     startFullscreen: settingsForm.startFullscreen.checked,
     defaultSelector: settingsForm.defaultSelector.value,
   });
 });
-
 $('#crawlAll').addEventListener('click', () => window.api.crawlNow());
 
+// ---------- 시작 ----------
 function render(s) {
   state = s;
   renderList();
   renderSettings();
 }
-
 window.api.onState(render);
 window.api.getState().then(render);
-setInterval(renderList, 30000); // "n분 전" 갱신

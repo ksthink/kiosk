@@ -2,115 +2,57 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' file: data:; style-src 'self' 'unsafe-inline'; script-src 'self' file:">
-  <title>배너 관리</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' file: data: blob: banner:; style-src 'self' 'unsafe-inline'; script-src 'self' file:">
+  <title>행사 관리</title>
   <link rel="stylesheet" href="admin.css">
 </head>
 <body>
   <header class="top">
-    <div>
-      <h1>배너 관리</h1>
-      <p class="sub">상태는 5분마다 자동으로 확인합니다.</p>
-    </div>
-    <button id="crawlAll" type="button">전체 지금 확인</button>
+    <h1>행사 <span id="count" class="count"></span></h1>
+    <button id="addBtn" class="primary big" type="button">＋ 행사 등록</button>
   </header>
 
-  <section class="panel">
-    <h2 id="formTitle">새 배너</h2>
-    <form id="form" autocomplete="off">
-      <input type="hidden" name="id">
-      <div class="grid">
-        <div class="imgpick">
-          <button type="button" id="preview" class="preview"><span>이미지 선택</span></button>
-        </div>
-        <div class="fields">
-          <label>제목
-            <input name="title" placeholder="예: 11월 독서모임 참가자 모집">
-          </label>
-          <label>사이트 주소 <small>여기서 상태 문구를 읽고, 배너를 누르면 이 주소가 열림</small>
-            <input name="link" required placeholder="https://www.ydplib.or.kr/drlib/lectureDetail.do?lectureIdx=…">
-          </label>
-          <details class="adv">
-            <summary>고급 설정</summary>
-            <label>상태 확인 URL <small>링크와 다른 페이지에서 읽어야 할 때만</small>
-              <input name="crawlUrl" placeholder="비우면 사이트 주소 사용">
-            </label>
-            <label>CSS 선택자 <small>비우면 아래 표시 설정의 기본 선택자 사용</small>
-              <input name="selector" placeholder="기본 선택자 사용">
-            </label>
-          </details>
-          <div class="row">
-            <label class="chk"><input type="checkbox" name="render"> 자바스크립트 렌더링 후 읽기 <small>일반 방식으로 안 잡힐 때</small></label>
-            <label class="chk"><input type="checkbox" name="active" checked> 갤러리에 표시</label>
-          </div>
-          <div class="actions">
-            <button type="button" id="testBtn">테스트</button>
-            <span class="spacer"></span>
-            <button type="button" id="cancelBtn" hidden>취소</button>
-            <button type="submit" class="primary" id="saveBtn">추가</button>
-          </div>
-          <div id="testOut" class="testout" hidden></div>
-          <div id="formErr" class="err" hidden></div>
-        </div>
-      </div>
-    </form>
-  </section>
+  <p id="hint" class="hint" hidden>끌어서 순서를 바꿀 수 있어요</p>
+  <ol id="list" class="list"></ol>
 
-  <section class="panel">
-    <h2>등록된 배너 <span id="count" class="count"></span></h2>
-    <ul id="list" class="list"></ul>
-  </section>
+  <div id="emptyMsg" class="emptymsg" hidden>
+    <button id="emptyAdd" type="button" class="drop">
+      <b>＋</b>
+      <span>행사 등록</span>
+    </button>
+  </div>
 
-  <section class="panel">
-    <h2>표시 설정</h2>
-    <form id="settings" class="settings">
-      <label>흐르는 속도 <output id="speedOut"></output>
-        <input type="range" name="speed" min="10" max="200" step="5">
+  <details class="settings">
+    <summary>설정</summary>
+    <form id="settings">
+      <label>넘김 간격 <output id="secOut"></output>
+        <input type="range" name="slideSeconds" min="3" max="30" step="1">
       </label>
-      <label>흐르는 방향
-        <select name="direction">
-          <option value="auto">자동 (세로 화면이면 위로)</option>
-          <option value="vertical">위로 (세로 화면용)</option>
-          <option value="horizontal">왼쪽으로 (가로 화면용)</option>
-        </select>
-      </label>
-      <label>한 줄 배너 수 <small>위로 흐를 때</small>
-        <select name="columns">
-          <option value="1">1개</option>
-          <option value="2">2개</option>
-          <option value="3">3개</option>
-          <option value="4">4개</option>
-        </select>
-      </label>
-      <label>배너 폭 <output id="widthOut"></output> <small>왼쪽으로 흐를 때</small>
-        <input type="range" name="cardWidth" min="160" max="800" step="10">
-      </label>
-      <label class="chk wide"><input type="checkbox" name="startFullscreen"> 실행하면 바로 전체화면 <small>키오스크용 · Esc로 해제</small></label>
-      <label class="wide">기본 CSS 선택자 <small>배너별로 따로 지정하지 않으면 이 요소의 글자를 읽어 표시</small>
+      <label class="chk"><input type="checkbox" name="startFullscreen"> 켜면 바로 전체화면</label>
+      <label>상태 읽는 위치
         <input name="defaultSelector" spellcheck="false">
       </label>
-      <label>이미지 비율
-        <select name="ratio">
-          <option value="16/9">16:9 가로</option>
-          <option value="4/3">4:3 가로</option>
-          <option value="1/1">1:1 정사각</option>
-          <option value="3/4">3:4 세로</option>
-          <option value="1/1.414">A4 세로 포스터</option>
-        </select>
-      </label>
+      <button id="crawlAll" type="button">지금 상태 다시 확인</button>
     </form>
-  </section>
-
-  <details class="panel help">
-    <summary>CSS 선택자 찾는 법</summary>
-    <ol>
-      <li>크롬에서 해당 페이지를 열고, 접수 상태 글자 위에서 마우스 오른쪽 → <b>검사</b></li>
-      <li>개발자 도구에서 강조된 줄을 마우스 오른쪽 → <b>Copy → Copy selector</b></li>
-      <li>위 칸에 붙여넣고 <b>테스트</b>로 읽힌 글자와 판정을 확인하세요.</li>
-      <li><code>nth-child</code>가 길게 붙은 선택자는 페이지가 조금만 바뀌어도 깨지니, 가능하면 클래스 이름 위주로 줄이세요.</li>
-      <li>테스트에서 "요소가 없습니다"가 나오면 페이지가 자바스크립트로 그려지는 경우라 <b>자바스크립트 렌더링</b>을 켜 보세요.</li>
-    </ol>
   </details>
+
+  <dialog id="dlg">
+    <form id="form" method="dialog">
+      <h2 id="dlgTitle">행사 등록</h2>
+      <button id="drop" type="button" class="drop">
+        <b>＋</b>
+        <span>포스터 이미지</span>
+      </button>
+      <input id="url" name="url" type="url" placeholder="행사 페이지 주소 (https://…)" required>
+      <p id="err" class="err" hidden></p>
+      <div class="actions">
+        <button id="delBtn" type="button" class="danger" hidden>삭제</button>
+        <span class="spacer"></span>
+        <button id="cancelBtn" type="button">취소</button>
+        <button id="okBtn" type="submit" class="primary">등록</button>
+      </div>
+    </form>
+  </dialog>
 
   <script src="admin.js"></script>
 </body>
